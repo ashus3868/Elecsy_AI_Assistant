@@ -699,56 +699,65 @@ void loop() {
 String fetchGeminiAI(String prompt) {
   if (WiFi.status() != WL_CONNECTED) return "WiFi Error";
 
-  for(int i = 0; i < 20; i++) {
-     drawThinkingFrame();
-     delay(20); 
+  for (int i = 0; i < 20; i++) {
+    drawThinkingFrame();
+    delay(20);
   }
 
   WiFiClientSecure client;
-  client.setInsecure(); 
+  client.setInsecure();
   HTTPClient http;
-  
+  http.setTimeout(15000); // Allow enough time for full generation
+
   String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
   if (!http.begin(client, url)) return "Conn Init Error";
-  
+
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("x-goog-api-key", apiKey); 
-  
-  String jsonPayload = "{"
-                         "\"contents\":[{\"parts\":[{\"text\":\"" + prompt + "\"}]}],"
-                         "\"generationConfig\":{"
-                           "\"thinkingConfig\":{\"thinkingLevel\":\"minimal\"}"
-                         "}"
-                       "}";
-  
-  int httpResponseCode = http.POST(jsonPayload); 
+  http.addHeader("x-goog-api-key", apiKey);
+
+  // Build valid JSON payload safely using ArduinoJson
+  JsonDocument reqDoc;
+  reqDoc["contents"][0]["parts"][0]["text"] = prompt + " (Answer clearly in plain text without markdown formatting.)";
+  reqDoc["generationConfig"]["thinkingConfig"]["thinkingLevel"] = "minimal";
+
+  String jsonPayload;
+  serializeJson(reqDoc, jsonPayload);
+
+  int httpResponseCode = http.POST(jsonPayload);
   String response = "Error parsing response";
 
-  if (httpResponseCode == HTTP_CODE_OK || httpResponseCode > 0) {
+  if (httpResponseCode == HTTP_CODE_OK) {
     String payload = http.getString();
-    String searchKey = "\"text\": \"";
-    int startIdx = payload.indexOf(searchKey);
-    
-    if (startIdx != -1) {
-      int textStart = startIdx + searchKey.length();
-      int textEnd = payload.indexOf("\"", textStart); 
-      
-      if (textEnd != -1) {
-        response = payload.substring(textStart, textEnd);
+
+    JsonDocument resDoc;
+    DeserializationError error = deserializeJson(resDoc, payload);
+
+    if (!error) {
+      const char* textPtr = resDoc["candidates"][0]["content"]["parts"][0]["text"];
+      if (textPtr != nullptr) {
+        response = String(textPtr);
         response.trim();
-        response.replace("\\n", " ");
-        response.replace("\\\"", "\"");
+        // Clean up common markdown/newline artifacts for clean OLED rendering
+        response.replace("**", "");
+        response.replace("* ", "- ");
+        response.replace("\r\n", " ");
+        response.replace("\n", " ");
+        while (response.indexOf("  ") != -1) {
+          response.replace("  ", " ");
+        }
       } else {
-        response = "Format Error";
+        response = "Empty AI Response";
       }
     } else {
-      response = "Text Key Missing";
+      Serial.print("JSON Parse Error: ");
+      Serial.println(error.c_str());
+      response = "JSON Parse Error";
     }
   } else {
     response = "API Error: " + String(httpResponseCode);
   }
 
-  http.end(); 
+  http.end();
   return response;
 }
 
@@ -889,19 +898,85 @@ void drawWifiConnectedFrame() {
 
 void displayResponse(String text) {
   drawFaceExpression("happy", 0, 0);
-  delay(800);
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println("Gemini AI Says:");
-  display.println("---------------------");
-  if (text.length() > 42) {
-    display.println(text.substring(0, 40) + "...");
-  } else {
-    display.println(text);
+  delay(600);
+
+  const int maxCharsPerLine = 21; // 128px width / 6px per char at textSize(1)
+  const int maxLinesPerPage = 6;  // 64px height - 16px header = 48px (6 lines * 8px)
+
+  // Step 1: Word-wrap the full string into individual display lines
+  std::vector<String> lines;
+  int start = 0;
+  int len = text.length();
+
+  while (start < len) {
+    while (start < len && text[start] == ' ') start++; // Skip leading spaces
+    if (start >= len) break;
+
+    if (len - start <= maxCharsPerLine) {
+      lines.push_back(text.substring(start));
+      break;
+    }
+
+    int end = start + maxCharsPerLine;
+    int lastSpace = text.lastIndexOf(' ', end);
+
+    if (lastSpace > start) {
+      lines.push_back(text.substring(start, lastSpace));
+      start = lastSpace + 1;
+    } else {
+      // Force break if a single word is longer than 21 chars
+      lines.push_back(text.substring(start, end));
+      start = end;
+    }
   }
-  display.display();
+
+  if (lines.empty()) {
+    lines.push_back("(No text)");
+  }
+
+  int totalPages = (lines.size() + maxLinesPerPage - 1) / maxLinesPerPage;
+
+  // Step 2: Render page by page so the full text is readable
+  for (int page = 0; page < totalPages; page++) {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+
+    // Header with Page Indicator (e.g., "Gemini AI        1/3")
+    display.setCursor(0, 0);
+    display.print("Gemini AI");
+
+    String pageStr = String(page + 1) + "/" + String(totalPages);
+    int pageX = SCREEN_WIDTH - (pageStr.length() * 6);
+    display.setCursor(pageX, 0);
+    display.print(pageStr);
+
+    display.drawLine(0, 10, 127, 10, SSD1306_WHITE);
+
+    // Print up to 6 wrapped lines for this page
+    int startLine = page * maxLinesPerPage;
+    for (int i = 0; i < maxLinesPerPage; i++) {
+      if (startLine + i < (int)lines.size()) {
+        display.setCursor(0, 14 + (i * 8));
+        display.print(lines[startLine + i]);
+      }
+    }
+
+    display.display();
+
+    // Wait 3.5 seconds per page (or tap touch sensor to skip immediately to next page)
+    unsigned long pageStart = millis();
+    bool tapReleased = (digitalRead(TOUCH_PIN) == LOW);
+    while (millis() - pageStart < 3500) {
+      bool touchNow = (digitalRead(TOUCH_PIN) == HIGH);
+      if (!touchNow) tapReleased = true;
+      if (touchNow && tapReleased) {
+        delay(200); // Simple debounce
+        break;
+      }
+      delay(20);
+    }
+  }
 }
 
 void handleTouch() {
