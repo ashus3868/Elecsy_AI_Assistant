@@ -1,6 +1,6 @@
 # Elecsy — ESP32-C3 AI Desktop Companion
 
-**Elecsy** is an interactive, voice-enabled desktop robot companion powered by an **ESP32-C3 Super Mini**. Featuring an expressive animated OLED face, capacitive touch controls, high-speed speech-to-text via **Groq Whisper**, and conversational intelligence powered by **Google Gemini**, Elecsy acts as a smart desk assistant capable of answering questions, displaying live weather, tracking timers, showing UPI payment QR codes, and more.
+**Elecsy** is an interactive, voice-enabled desktop robot companion powered by an **[ESP32-C3 Super Mini](https://elecsynergy.in/products/esp32-c3-mini-type-c?_pos=1&_psq=esp32-c3&_psid=d1d0ee689&_ss=e)**. Featuring an expressive animated OLED face, capacitive touch controls, high-speed speech-to-text via **Groq Whisper**, and conversational intelligence powered by **Google Gemini**, Elecsy acts as a smart desk assistant capable of answering questions, displaying live weather, tracking timers, showing UPI payment QR codes, and more.
 
 ---
 
@@ -22,10 +22,10 @@
 
 | Component | Specification / Notes |
 | :--- | :--- |
-| **Microcontroller** | ESP32-C3 Super Mini |
-| **Display** | 0.96" I2C OLED Display (128×64, SSD1306, Address `0x3C`) |
-| **Microphone** | INMP441 Omnidirectional I2S MEMS Microphone |
-| **Touch Sensor** | TTP223 Capacitive Touch Sensor Module |
+| **Microcontroller** | [ESP32-C3 Super Mini](https://elecsynergy.in/products/esp32-c3-mini-type-c?_pos=1&_psq=esp32-c3&_psid=d1d0ee689&_ss=e) |
+| **Display** | [0.96" I2C OLED Display (128×64, SSD1306, Address `0x3C`)](https://elecsynergy.in/products/0-96-inch-oled-display-module-white-gvss?_pos=2&_sid=240376d5f&_ss=r) |
+| **Microphone** | [INMP441 Omnidirectional I2S MEMS Microphone](https://elecsynergy.in/products/inmp441-microphone-module-mems?_pos=1&_psq=inmp441&_psid=934d97189&_ss=e) |
+| **Touch Sensor** | [TTP223 Capacitive Touch Sensor Module](https://elecsynergy.in/products/ttp223-capacitive-touch-sensor?_pos=1&_psq=ttp223&_psid=56107a270&_ss=e) |
 
 ---
 
